@@ -1,15 +1,19 @@
+import {filterValues} from "jsr:@std/collections";
+
 const isMeetsCriteria = (num) => {
   const digits = `${num}`.split("").map(n => parseInt(n));
   let double = false;
+  const count = {};
+
   for (let i = 0; i < digits.length; i++) {
-    if(digits[i] === digits[i + 1]) {
-      double = true;
-    }
+    (!count[digits[i]]) ? count[digits[i]] = 1 : count[digits[i]]++;
+    double = filterValues(count, (c) => c === 2);
+
     if(digits[i] > digits[i + 1]) {
       return false;
     }
   }
-  return double;
+  return Object.keys(double).length;
 }
 
 const counter = (start, end) => {
@@ -22,4 +26,4 @@ const counter = (start, end) => {
   return count;
 }
 
-console.log(counter(307237,769058));
+console.log(counter(307237, 769058));
