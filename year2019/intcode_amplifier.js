@@ -1,6 +1,9 @@
-import { chunk, permutations } from "jsr:@std/collections";
+import { chunk, maxBy, permutations } from "jsr:@std/collections";
 
-const output = (array, index) => instructions[4].values = array[index];
+const output = (array, index) => {
+  instructions[4].values = array[index];
+  halt();
+};
 
 const input = (array, index) => {
   array[index] = instructions[3].value.shift();
@@ -15,14 +18,10 @@ const mul = (array, param1Address, param2Address, writeTo) =>
 const halt = () => instructions[99].halted = true;
 
 const jumpIfTrue = (array, input1, input2, _o, pointer) =>
-  instructions[5].offset = (parseInt(array[input1]) !== 0)
-    ? array[input2] - pointer
-    : 3;
+  instructions[5].offset = (array[input1] !== 0) ? array[input2] - pointer : 3;
 
 const jumpIfFalse = (array, input1, input2, _o, pointer) =>
-  instructions[6].offset = (parseInt(array[input1]) === 0)
-    ? array[input2] - pointer
-    : 3;
+  instructions[6].offset = (parray[input1] === 0) ? array[input2] - pointer : 3;
 
 const lessThan = (array, input1, input2, writeTo) =>
   array[writeTo] = (array[input1] < array[input2]) ? 1 : 0;
@@ -63,11 +62,12 @@ const instructions = {
   99: { operation: halt, offset: 1, halted: false },
 };
 
+let isHalted = false;
 const executeInstructions = (program, pointer) => {
   const instruction = `${program[pointer]}`.padStart(5, "0");
 
   const opcode = parseInt(instruction.slice(instruction.length - 2));
-
+  isHalted = opcode === 99;
   const [input1, input2, writeTo] = getParameters(
     instruction,
     program,
@@ -89,19 +89,17 @@ const display = (program, pointer) => {
 };
 
 const debug = (program, pointer) => {
-  console.clear();
+  // console.clear();
   display(program, pointer);
   prompt();
 };
 
-const stepForward = ({ program, pointer }) => {
+const stepForward = (computer) => {
   instructions[99].halted = false;
-
   while (!instructions[99].halted) {
-    // debug(program, pointer);
-    pointer = executeInstructions(program, pointer);
+    // debug(computer.program, computer.pointer);
+    computer.pointer = executeInstructions(computer.program, computer.pointer);
   }
-
   const outputValue = instructions[4].values;
   return outputValue;
 };
@@ -111,36 +109,64 @@ const computer = {
   pointer: 0,
 };
 
-const generateSignal = (amplifiers) => {
-  const thruster = amplifiers.reduce((result, amplifier) => {
-    instructions[3].value = [amplifier, result];
-    computer.pointer = 0;
-    return stepForward(computer);
-  }, 0);
-  return { thruster, amplifiers };
+const amplifiers = {
+  5: { program: computer.program.slice(), pointer: 0 },
+  6: { program: computer.program.slice(), pointer: 0 },
+  7: { program: computer.program.slice(), pointer: 0 },
+  8: { program: computer.program.slice(), pointer: 0 },
+  9: { program: computer.program.slice(), pointer: 0 },
 };
 
-const amplifierController = () => {
-  const combinations = permutations([0, 1, 2, 3, 4]);
-  const signals = combinations.map(generateSignal);
-  const higherSignal = signals.reduce(
-    (largest, { thruster }) => Math.max(largest, thruster),
-    0,
-  );
-  console.log(higherSignal);
+const generateSignal = (amplifierSequence, inputSignal) => {
+  let i = 0;
+  isHalted = false;
+  while (!isHalted) {
+    const phase = amplifierSequence[i++ % 5];
+    const amplifier = amplifiers[phase];
+    instructions[3].value = (i < 6) ? [phase, inputSignal] : [inputSignal];
+    inputSignal = stepForward(amplifier);
+  }
+  return inputSignal;
+};
+
+const amplifierController = (phases) => {
+  // const combinations = [[9, 7, 8, 5, 6]];
+  const combinations = permutations(phases);
+  const signals = [];
+  for (const amplifierSequence of combinations) {
+    phases.map((phase) => {
+      amplifiers[phase].program = computer.program.slice();
+      amplifiers[phase].pointer = 0;
+    });
+    signals.push(
+      generateSignal(amplifierSequence, 0),
+    );
+  }
+  // const signals = combinations.map((amplifiers) =>
+  //   generateSignal(amplifiers, 0)
+  // );
+
+  console.log(Math.max(...signals));
 };
 
 const part1 = (input) => {
   const program = eval("[" + input + "]");
   computer.program = program;
-  amplifierController();
+  amplifierController([0, 1, 2, 3, 4]);
+};
+
+const part2 = (input) => {
+  const program = eval("[" + input + "]");
+  computer.program = program.slice();
+  amplifierController([5, 6, 7, 8, 9], program);
 };
 
 const inputs = {
   verySmall: "1002,4,3,4,33",
   small:
-    "3,23,3,24,1002,24,10,24,1002,23,-1,23,101,5,23,23,1,24,23,23,4,23,99,0,0",
+    "3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,-5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10",
   file: Deno.readTextFileSync("./input.txt"),
 };
 
-part1(inputs.file);
+// part1(inputs.small);
+part2(inputs.file);
